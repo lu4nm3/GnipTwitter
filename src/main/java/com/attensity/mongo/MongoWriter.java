@@ -9,7 +9,6 @@ import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
@@ -40,7 +39,10 @@ public class MongoWriter {
 
                     if (null != messageMap) {// && messageMap.get("objectType").equals("activity") && (messageMap.get("verb").equals("post") || messageMap.get("verb").equals("share"))) {
 //                        System.out.println(messageMap);
+
                         insertIntoMongo(messageMap);
+                    } else {
+                        System.out.println("Dropped");
                     }
                 }
             }

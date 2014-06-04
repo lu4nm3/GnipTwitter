@@ -64,7 +64,7 @@ public class StreamingConnection implements Daemon {
         messageQueue = new LinkedBlockingQueue<>();
         mongoConnector = new MongoConnector();
 
-        TIME_SECONDS = 5;
+        TIME_SECONDS = 30;
     }
 
     @Override
@@ -79,7 +79,13 @@ public class StreamingConnection implements Daemon {
         mongoConnector.connect();
 
         if ((null == mongoExecutorService) || (mongoExecutorService.isShutdown())) {
-            mongoExecutorService = Executors.newFixedThreadPool(3);
+            mongoExecutorService = Executors.newFixedThreadPool(7);
+            mongoExecutorService.submit(createMongoRunnable());
+            mongoExecutorService.submit(createMongoRunnable());
+            mongoExecutorService.submit(createMongoRunnable());
+            mongoExecutorService.submit(createMongoRunnable());
+            mongoExecutorService.submit(createMongoRunnable());
+            mongoExecutorService.submit(createMongoRunnable());
             mongoExecutorService.submit(createMongoRunnable());
         }
     }
