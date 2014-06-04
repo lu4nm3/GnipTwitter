@@ -1,5 +1,8 @@
 apply plugin: 'java'
 apply plugin: 'maven'
+apply plugin: 'application'
+
+mainClassName = "com.attensity.gnip.twitter.StreamingConnection"
 
 sourceCompatibility = 1.7
 
@@ -14,7 +17,8 @@ dependencies {
             'commons-lang:commons-lang:2.6',    // Apache License 2.0
             'org.slf4j:slf4j-api:1.7.7',        // Apache License 2.0
             'org.mongodb:mongo-java-driver:2.11.4',
-            'org.slf4j:slf4j-api:1.7.7'
+            'org.slf4j:slf4j-api:1.7.7',
+            'commons-daemon:commons-daemon:1.0.15'
 }
 
 repositories {
