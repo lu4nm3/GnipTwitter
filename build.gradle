@@ -6,8 +6,12 @@ mainClassName = "com.attensity.gnip.twitter.StreamingConnection"
 
 sourceCompatibility = 1.7
 
-tasks.withType(Compile) {
-    options.compilerArgs << '-Xlint:unchecked' << '-Xlint:deprecation'
+//tasks.withType(Compile) {
+//    options.compilerArgs << '-Xlint:unchecked' << '-Xlint:deprecation'
+//}
+
+configurations {
+    published
 }
 
 dependencies {

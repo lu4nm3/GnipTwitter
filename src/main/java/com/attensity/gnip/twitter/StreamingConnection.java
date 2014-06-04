@@ -9,6 +9,8 @@ import sun.misc.BASE64Encoder;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * @author lmedina
@@ -26,10 +28,16 @@ public class StreamingConnection implements Daemon {
     private HttpURLConnection connection;
     private InputStream inputStream;
 
+    private ExecutorService executorService;
+
     public static void main(String... args) throws IOException {
         try {
             streamingConnection.init(null);
             streamingConnection.start();
+
+            Thread.sleep(7000);
+
+            streamingConnection.stop();
         } catch (Exception e) {
             LOGGER.error("Failed to start daemon.", e);
         }
@@ -45,39 +53,45 @@ public class StreamingConnection implements Daemon {
 
     @Override
     public void start() throws Exception {
-        try {
-            connection = getConnection(streamURL, username, password);
-            inputStream = connection.getInputStream();
-
-            int responseCode = connection.getResponseCode();
-
-            if (responseCode >= 200 && responseCode <= 299) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(new StreamingGZIPInputStream(inputStream), charset));
-                String line = reader.readLine();
-
-                while(line != null){
-                    System.out.println(line);
-                    line = reader.readLine();
-                }
-            } else {
-                handleNonSuccessResponse(connection);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            if (connection != null) {
-                handleNonSuccessResponse(connection);
-            }
-        } finally {
-            if (inputStream != null) {
-                inputStream.close();
-            }
+        if ((null == executorService) || (executorService.isShutdown())) {
+            executorService = Executors.newSingleThreadExecutor();
+            executorService.submit(createRunnable());
         }
     }
 
-    private static void handleNonSuccessResponse(HttpURLConnection connection) throws IOException {
-        int responseCode = connection.getResponseCode();
-        String responseMessage = connection.getResponseMessage();
-        System.out.println("Non-success response: " + responseCode + " -- " + responseMessage);
+    public Runnable createRunnable() throws Exception {
+        return new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    connection = getConnection(streamURL, username, password);
+                    inputStream = connection.getInputStream();
+
+                    int responseCode = connection.getResponseCode();
+
+                    if (responseCode >= 200 && responseCode <= 299) {
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(new StreamingGZIPInputStream(inputStream), charset));
+                        String line = reader.readLine();
+
+                        while(line != null){
+                            System.out.println(line);
+                            line = reader.readLine();
+                        }
+                    } else {
+                        handleNonSuccessResponse(connection);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    if (connection != null) {
+                        handleNonSuccessResponse(connection);
+                    }
+                } finally {
+                    if (inputStream != null) {
+                        closeInputStream();
+                    }
+                }
+            }
+        };
     }
 
     private static HttpURLConnection getConnection(String urlString, String username, String password) throws IOException {
@@ -99,9 +113,31 @@ public class StreamingConnection implements Daemon {
         return "Basic " + encoder.encode(authToken.getBytes());
     }
 
+    private static void handleNonSuccessResponse(HttpURLConnection connection) {
+        try {
+            int responseCode = connection.getResponseCode();
+            String responseMessage = connection.getResponseMessage();
+            System.out.println("Non-success response: " + responseCode + " -- " + responseMessage);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void closeInputStream() {
+        try {
+            inputStream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     @Override
-    public void stop() throws Exception {
-        inputStream.close();
+    public void stop() {
+        if (null != executorService && !executorService.isShutdown()) {
+            executorService.shutdownNow();
+        }
+
+        closeInputStream();
         System.out.println("Closed InputStream.");
     }
 
