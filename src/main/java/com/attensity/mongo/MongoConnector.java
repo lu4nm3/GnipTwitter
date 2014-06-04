@@ -13,7 +13,7 @@ import java.net.UnknownHostException;
  * @author pgangrade
  */
 public class MongoConnector {
-    private Logger log = LoggerFactory.getLogger(MongoConnector.class);
+    private Logger LOGGER = LoggerFactory.getLogger(MongoConnector.class);
     private MongoClient mongoClient;
     private String host;
     private int port;
@@ -34,17 +34,17 @@ public class MongoConnector {
         if (null == mongoClient) {
             try {
                 mongoClient = new MongoClient(host, port);
-                log.info(String.format("Connected to MongoDB instance at %s:%d", host, port));
+                LOGGER.info(String.format("Connected to MongoDB instance at %s:%d", host, port));
                 verifyConnectedToMongoDBDatabase();
             } catch (UnknownHostException e) {
-                log.error(String.format("Unable to connect to MongoDB host, %s, could not be determined, exception: %s", host, e.getMessage()));
+                LOGGER.error(String.format("Unable to connect to MongoDB host, %s, could not be determined, exception: %s", host, e.getMessage()));
                 throw new RuntimeException(e);
             } catch (MongoException e) {
-                log.error(String.format("Unable to connect to MongoDB at host:%s, port:%d, exception: %s", host, port, e.getMessage()));
+                LOGGER.error(String.format("Unable to connect to MongoDB at host:%s, port:%d, exception: %s", host, port, e.getMessage()));
                 throw new IllegalStateException(e);
             }
         } else {
-            log.warn(String.format("Attempted connection to MongoDB instance at %s:%d, when already connected.", host, port));
+            LOGGER.warn(String.format("Attempted connection to MongoDB instance at %s:%d, when already connected.", host, port));
         }
     }
 
@@ -56,10 +56,10 @@ public class MongoConnector {
             if (null != mongoClient) {
                 mongoClient.close();
                 mongoClient = null;
-                log.info(String.format("Closed connection to MongoDB instance at %s:%d", host, port));
+                LOGGER.info(String.format("Closed connection to MongoDB instance at %s:%d", host, port));
             }
         } catch(RuntimeException e) {
-            log.error("Unable to close connection to Mongodb", e);
+            LOGGER.error("Unable to close connection to Mongodb", e);
         }
     }
 
@@ -81,9 +81,4 @@ public class MongoConnector {
         }
         return true;
     }
-
-    void setMongoClient(MongoClient mongoClient) {
-        this.mongoClient = mongoClient;
-    }
-
 }

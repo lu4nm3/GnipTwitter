@@ -1,122 +1,74 @@
 package com.attensity.mongo;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.MongoException;
+import org.apache.commons.lang.StringUtils;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.text.SimpleDateFormat;
-import java.util.HashMap;
+import java.io.IOException;
 import java.util.Map;
-import java.util.TimeZone;
+import java.util.concurrent.BlockingQueue;
 
 public class MongoWriter {
-    private Logger logger = LoggerFactory.getLogger(MongoWriter.class);
-    private MongoConnector mongoConnector;
-    //    private Clock clock = new SystemClock();
-    private DB database;
-    private boolean shutdown = false;
+    private Logger LOGGER = LoggerFactory.getLogger(MongoWriter.class);
 
-    static final SimpleDateFormat DAY_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
-    static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-    static final TimeZone TIMEZONE = TimeZone.getTimeZone("GMT");
+    private DBCollection mongoCollection;
+    private BlockingQueue<String> messageQueue;
 
-    static {
-        DAY_FORMAT.setTimeZone(TIMEZONE);
-        DATE_FORMAT.setTimeZone(TIMEZONE);
+    private long messagesNotStored;
+
+    private ObjectMapper mapper;
+
+    public MongoWriter(MongoConnector mongoConnector, BlockingQueue<String> messageQueue) {
+//        this.mongoCollection = mongoConnector.getDatabase().getCollection("twitter");
+
+        this.messageQueue = messageQueue;
+        this.mapper = new ObjectMapper();
     }
 
-    public MongoWriter(MongoConnector mongoConnector) {
-        this.mongoConnector = mongoConnector;
-//        this.mongoConnector.connect();
-//        database = this.mongoConnector.getDatabase();
-        logger.info("MongoStorageWriter initialized");
-    }
-
-//    public void processMessage(Activity activity) {
-//        Map<String, Object> activityMap = null;
-//        String collectionName = "twitter";
-//        try {
-//            activityMap = getActivityMap(activity);
-////            insertArticleIntoMongo(activityMap, collectionName);
-//        }
-//        catch (MongoException e) {
-//            retryAttempt(activityMap, collectionName);
-//        }
-//        catch (RuntimeException e) {
-//            logger.error(String.format("Unable to write the activityMap to mongo collection, collection: %s", collectionName), e);
-//        }
-//    }
-
-    public void processMessage(String activity) {
-        Map<String, Object> activityMap = null;
-        String collectionName = "twitter";
+    public void processMessages() {
         try {
-            activityMap = getActivityMap(activity);
-//            insertArticleIntoMongo(activityMap, collectionName);
-        }
-        catch (MongoException e) {
-            retryAttempt(activityMap, collectionName);
-        }
-        catch (RuntimeException e) {
-            logger.error(String.format("Unable to write the activityMap to mongo collection, collection: %s", collectionName), e);
-        }
-    }
+            while (true) {
+                String message = messageQueue.take();
 
-    private void insertArticleIntoMongo(Map<String, Object> article, String collectionName) {
-        DBCollection mongoCollection = database.getCollection(collectionName);
-        mongoCollection.insert(new BasicDBObject(article));
-    }
+                if (StringUtils.isNotBlank(message)) {
+                    Map<String, Object> messageMap = createMessageMap(message);
 
-    private void retryAttempt(Map<String, Object> article, String collectionName) {
-        boolean firstTimeLogging = true;
-        while(!shutdown) {
-            try {
-                if(firstTimeLogging) {
-                    firstTimeLogging = false;
-                    logger.warn("Retrying save of articleId: " + article.get("id"));
+                    if (null != messageMap) {
+                        System.out.println(messageMap);
+//                    insertIntoMongo(messageMap);
+                    }
                 }
-                if (!connectedToDatabase()) {
-                    attemptReconnect();
-                }
-
-                insertArticleIntoMongo(article, collectionName);
-                break; // breakout if insert was successful.
             }
-            catch (MongoException e) {
-                logger.error(String.format("Unable to write to mongo, collection: %s, exception: %s", collectionName, e.getMessage()));
-            }
-            catch (RuntimeException e) {
-                logger.error(String.format("Unable to write to mongo, collection: %s", collectionName), e);
-                break;
-            }
+        } catch (InterruptedException e) {
+            LOGGER.warn("Interrupted while reading from messageQueue.");
         }
     }
 
-    private boolean connectedToDatabase() {
-        return mongoConnector.verifyConnectedToMongoDBDatabase();
+    private Map<String, Object> createMessageMap(String message) {
+        try {
+            return mapper.readValue(message.getBytes(), new TypeReference<Map<String, Object>>() {});
+        } catch (IOException e) {
+            e.printStackTrace();
+            System.out.println("ERROR with message - " + message);
+            return null;
+        }
     }
 
-    private void attemptReconnect() {
-        mongoConnector.close();
-        mongoConnector.connect();
-    }
+    public void insertIntoMongo(Map<String, Object> messageMap) {
+        try {
+            mongoCollection.insert(new BasicDBObject(messageMap));
+        } catch (MongoException e) {
+            messagesNotStored++;
 
-//    Map<String, Object> getActivityMap(Activity activity) {
-//        Map<String, Object> articleMap = new HashMap<String, Object>();
-//
-//        System.out.println(activity.getPayload());
-//
-//        return articleMap;
-//    }
+            if (messagesNotStored % 20 == 0) {
+                LOGGER.info(String.format("Unable to insert into Mongo. (Total messages not stored = %d)", messagesNotStored));
+            }
+        }
 
-    Map<String, Object> getActivityMap(String activity) {
-        Map<String, Object> articleMap = new HashMap<>();
-
-        System.out.println(activity);
-
-        return articleMap;
     }
 }

@@ -1,5 +1,7 @@
 package com.attensity.gnip.twitter;
 
+import com.attensity.mongo.MongoConnector;
+import com.attensity.mongo.MongoWriter;
 import org.apache.commons.daemon.Daemon;
 import org.apache.commons.daemon.DaemonContext;
 import org.slf4j.Logger;
@@ -9,8 +11,10 @@ import sun.misc.BASE64Encoder;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /**
  * @author lmedina
@@ -29,6 +33,10 @@ public class StreamingConnection implements Daemon {
     private InputStream inputStream;
 
     private ExecutorService executorService;
+
+    private ExecutorService mongoExecutorService;
+    private BlockingQueue<String> messageQueue;
+    private MongoConnector mongoConnector;
 
     public static void main(String... args) throws IOException {
         try {
@@ -49,17 +57,44 @@ public class StreamingConnection implements Daemon {
         password = "@tt3ns1ty";
         streamURL = "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/track/prod.json";
         charset = "UTF-8";
+
+        messageQueue = new LinkedBlockingQueue<>();
+        mongoConnector = new MongoConnector();
     }
 
     @Override
     public void start() throws Exception {
+        startMongoThreads();
+        startStreamThread();
+    }
+
+    private void startStreamThread() throws Exception {
         if ((null == executorService) || (executorService.isShutdown())) {
             executorService = Executors.newSingleThreadExecutor();
-            executorService.submit(createRunnable());
+            executorService.submit(createStreamRunnable());
         }
     }
 
-    public Runnable createRunnable() throws Exception {
+    private void startMongoThreads() {
+//        mongoConnector.connect();
+
+        if ((null == mongoExecutorService) || (mongoExecutorService.isShutdown())) {
+            mongoExecutorService = Executors.newFixedThreadPool(3);
+            mongoExecutorService.submit(createMongoRunnable());
+        }
+    }
+
+    public Runnable createMongoRunnable() {
+        return new Runnable() {
+            @Override
+            public void run() {
+                MongoWriter mongoWriter = new MongoWriter(mongoConnector, messageQueue);
+                mongoWriter.processMessages();
+            }
+        };
+    }
+
+    public Runnable createStreamRunnable() throws Exception {
         return new Runnable() {
             @Override
             public void run() {
@@ -74,14 +109,13 @@ public class StreamingConnection implements Daemon {
                         String line = reader.readLine();
 
                         while(line != null){
-                            System.out.println(line);
+                            messageQueue.add(line);
                             line = reader.readLine();
                         }
                     } else {
                         handleNonSuccessResponse(connection);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
                     if (connection != null) {
                         handleNonSuccessResponse(connection);
                     }
@@ -133,16 +167,31 @@ public class StreamingConnection implements Daemon {
 
     @Override
     public void stop() {
+        stopStreamExecutor();
+        stopMongoExecutor();
+    }
+
+    private void stopStreamExecutor() {
+        closeInputStream();
+
         if (null != executorService && !executorService.isShutdown()) {
             executorService.shutdownNow();
         }
 
-        closeInputStream();
-        System.out.println("Closed InputStream.");
+        LOGGER.info("Closed stream.");
+    }
+
+    private void stopMongoExecutor() {
+        if (null != mongoExecutorService && !mongoExecutorService.isShutdown()) {
+            mongoExecutorService.shutdownNow();
+        }
+
+        mongoConnector.close();
+        LOGGER.info("Closed Mongo connection.");
     }
 
     @Override
     public void destroy() {
-
+        LOGGER.info("Done.");
     }
 }
