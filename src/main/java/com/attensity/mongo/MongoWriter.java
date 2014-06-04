@@ -24,7 +24,7 @@ public class MongoWriter {
     private ObjectMapper mapper;
 
     public MongoWriter(MongoConnector mongoConnector, BlockingQueue<String> messageQueue) {
-        this.mongoCollection = mongoConnector.getDatabase().getCollection("twitter");
+        this.mongoCollection = mongoConnector.getDatabase().getCollection("decahose");
 
         this.messageQueue = messageQueue;
         this.mapper = new ObjectMapper();
@@ -38,8 +38,8 @@ public class MongoWriter {
                 if (StringUtils.isNotBlank(message)) {
                     Map<String, Object> messageMap = createMessageMap(message);
 
-                    if (null != messageMap) {
-                        System.out.println(messageMap);
+                    if (null != messageMap) {// && messageMap.get("objectType").equals("activity") && (messageMap.get("verb").equals("post") || messageMap.get("verb").equals("share"))) {
+//                        System.out.println(messageMap);
                         insertIntoMongo(messageMap);
                     }
                 }
@@ -52,7 +52,7 @@ public class MongoWriter {
     private Map<String, Object> createMessageMap(String message) {
         try {
             return mapper.readValue(message.getBytes(), new TypeReference<Map<String, Object>>() {});
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
             System.out.println("ERROR with message - " + message);
             return null;

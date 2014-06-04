@@ -11,10 +11,8 @@ import sun.misc.BASE64Encoder;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * @author lmedina
@@ -38,12 +36,17 @@ public class StreamingConnection implements Daemon {
     private BlockingQueue<String> messageQueue;
     private MongoConnector mongoConnector;
 
+    private ScheduledExecutorService rateTrackingExecutorService;
+    private long TIME_SECONDS;
+    private AtomicLong oldMessageCount = new AtomicLong(0);
+    private AtomicLong currentMessageCount = new AtomicLong(0);
+
     public static void main(String... args) throws IOException {
         try {
             streamingConnection.init(null);
             streamingConnection.start();
 
-            Thread.sleep(7000);
+            Thread.sleep(20000);
 
             streamingConnection.stop();
         } catch (Exception e) {
@@ -55,25 +58,22 @@ public class StreamingConnection implements Daemon {
     public void init(DaemonContext context) throws Exception {
         username = "ebradley@attensity.com";
         password = "@tt3ns1ty";
-        streamURL = "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/track/prod.json";
+        streamURL = "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/decahose/prod.json";
         charset = "UTF-8";
 
         messageQueue = new LinkedBlockingQueue<>();
         mongoConnector = new MongoConnector();
+
+        TIME_SECONDS = 5;
     }
 
     @Override
     public void start() throws Exception {
         startMongoThreads();
         startStreamThread();
+        startRateTrackingThread();
     }
 
-    private void startStreamThread() throws Exception {
-        if ((null == executorService) || (executorService.isShutdown())) {
-            executorService = Executors.newSingleThreadExecutor();
-            executorService.submit(createStreamRunnable());
-        }
-    }
 
     private void startMongoThreads() {
         mongoConnector.connect();
@@ -84,7 +84,21 @@ public class StreamingConnection implements Daemon {
         }
     }
 
-    public Runnable createMongoRunnable() {
+    private void startStreamThread() throws Exception {
+        if ((null == executorService) || (executorService.isShutdown())) {
+            executorService = Executors.newSingleThreadExecutor();
+            executorService.submit(createStreamRunnable());
+        }
+    }
+
+    private void startRateTrackingThread() {
+        if ((null == rateTrackingExecutorService) || (rateTrackingExecutorService.isShutdown())) {
+            rateTrackingExecutorService = Executors.newSingleThreadScheduledExecutor();
+            rateTrackingExecutorService.scheduleAtFixedRate(createRateTrackingRunnable(), 0, TIME_SECONDS, TimeUnit.SECONDS);
+        }
+    }
+
+    private Runnable createMongoRunnable() {
         return new Runnable() {
             @Override
             public void run() {
@@ -94,7 +108,7 @@ public class StreamingConnection implements Daemon {
         };
     }
 
-    public Runnable createStreamRunnable() throws Exception {
+    private Runnable createStreamRunnable() throws Exception {
         return new Runnable() {
             @Override
             public void run() {
@@ -110,6 +124,8 @@ public class StreamingConnection implements Daemon {
 
                         while(line != null){
                             messageQueue.add(line);
+                            currentMessageCount.incrementAndGet();
+
                             line = reader.readLine();
                         }
                     } else {
@@ -126,6 +142,26 @@ public class StreamingConnection implements Daemon {
                 }
             }
         };
+    }
+
+    private Runnable createRateTrackingRunnable() {
+        return new Runnable() {
+            @Override
+            public void run() {
+                logUpdateStatus();
+            }
+        };
+    }
+
+    private void logUpdateStatus() {
+        long current = currentMessageCount.get();
+        long old = oldMessageCount.get();
+
+        LOGGER.info(String.format("RATES: totalMessagesSent(%d), messagesInTheLastTimeInterval(%d), ratePerSecond(%d)", current,
+                                  current - old,
+                                  (current - old) / TIME_SECONDS));
+
+        oldMessageCount.set(current);
     }
 
     private static HttpURLConnection getConnection(String urlString, String username, String password) throws IOException {
@@ -169,6 +205,8 @@ public class StreamingConnection implements Daemon {
     public void stop() {
         stopStreamExecutor();
         stopMongoExecutor();
+        stopRateTrackingExecutor();
+        logUpdateStatus();
     }
 
     private void stopStreamExecutor() {
@@ -188,6 +226,14 @@ public class StreamingConnection implements Daemon {
 
         mongoConnector.close();
         LOGGER.info("Closed Mongo connection.");
+    }
+
+    private void stopRateTrackingExecutor() {
+        if (null != rateTrackingExecutorService && !rateTrackingExecutorService.isShutdown()) {
+            rateTrackingExecutorService.shutdownNow();
+        }
+
+        LOGGER.info("Stopped rate tracking.");
     }
 
     @Override
