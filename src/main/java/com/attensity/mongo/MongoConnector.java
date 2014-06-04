@@ -20,7 +20,7 @@ public class MongoConnector {
     private String databaseName;
 
     public MongoConnector() {
-        host = "127.0.0.1";
+        host = "10.202.206.61";
         port = 27017;
         databaseName = "gnip";
     }
@@ -35,7 +35,6 @@ public class MongoConnector {
             try {
                 mongoClient = new MongoClient(host, port);
                 LOGGER.info(String.format("Connected to MongoDB instance at %s:%d", host, port));
-                verifyConnectedToMongoDBDatabase();
             } catch (UnknownHostException e) {
                 LOGGER.error(String.format("Unable to connect to MongoDB host, %s, could not be determined, exception: %s", host, e.getMessage()));
                 throw new RuntimeException(e);
@@ -68,17 +67,6 @@ public class MongoConnector {
      * @return
      */
     DB getDatabase() {
-        verifyConnectedToMongoDBDatabase();
         return mongoClient.getDB(databaseName);
-    }
-
-    boolean verifyConnectedToMongoDBDatabase() {
-        if (null == mongoClient) {
-            throw new IllegalStateException(String.format("Failed to determine database \"%s\". MongoConnector.connect() may not have been invoked.", databaseName));
-        }
-        if (!mongoClient.getDatabaseNames().contains(databaseName)) {
-            throw new IllegalStateException(String.format("Failed to determine database \"%s\" on host \"%s\", port \"%d\".", databaseName, host, port));
-        }
-        return true;
     }
 }

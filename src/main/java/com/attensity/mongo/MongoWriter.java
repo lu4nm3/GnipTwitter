@@ -24,7 +24,7 @@ public class MongoWriter {
     private ObjectMapper mapper;
 
     public MongoWriter(MongoConnector mongoConnector, BlockingQueue<String> messageQueue) {
-//        this.mongoCollection = mongoConnector.getDatabase().getCollection("twitter");
+        this.mongoCollection = mongoConnector.getDatabase().getCollection("twitter");
 
         this.messageQueue = messageQueue;
         this.mapper = new ObjectMapper();
@@ -40,7 +40,7 @@ public class MongoWriter {
 
                     if (null != messageMap) {
                         System.out.println(messageMap);
-//                    insertIntoMongo(messageMap);
+                        insertIntoMongo(messageMap);
                     }
                 }
             }

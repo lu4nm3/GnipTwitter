@@ -76,7 +76,7 @@ public class StreamingConnection implements Daemon {
     }
 
     private void startMongoThreads() {
-//        mongoConnector.connect();
+        mongoConnector.connect();
 
         if ((null == mongoExecutorService) || (mongoExecutorService.isShutdown())) {
             mongoExecutorService = Executors.newFixedThreadPool(3);
