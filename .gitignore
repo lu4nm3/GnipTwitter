@@ -5,6 +5,7 @@
 
 ## Directory-based project format
 .idea/
+.idea
 # if you remove the above rule, at least ignore user-specific stuff:
 # .idea/workspace.xml
 # .idea/tasks.xml
@@ -44,6 +45,7 @@ build/
 .mtj.tmp/
 
 # Package Files #
+*.jar
 *.war
 *.ear
 
