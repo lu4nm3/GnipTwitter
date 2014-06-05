@@ -77,14 +77,13 @@ public class StreamingConnection {
         properties.setProperty("runDurationSeconds", "20000");
         properties.setProperty("mongoWriterCount", "5");
         switch (streamType.toUpperCase()) {
-            case "DECAHOSE":    properties.setProperty("gnipUrl", "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/track/prod.json");
+            case "DECAHOSE":    properties.setProperty("gnipUrl", "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/decahose/prod.json");
                                 properties.setProperty("mongoCollectionName", "decahose");
                                 break;
-            case "POWERTRACK":  properties.setProperty("gnipUrl", "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/firehose/prod.json");
+            case "POWERTRACK":  properties.setProperty("gnipUrl", "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/track/prod.json");
                                 properties.setProperty("mongoCollectionName", "powertrack");
                                 break;
             default:
-
         }
     }
 

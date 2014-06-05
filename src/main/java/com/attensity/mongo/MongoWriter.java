@@ -38,10 +38,9 @@ public class MongoWriter {
                 if (StringUtils.isNotBlank(message)) {
                     Map<String, Object> messageMap = createMessageMap(message);
 
-                    if (null != messageMap && messageMap.get("objectType").equals("activity") && (messageMap.get("verb").equals("post") || messageMap.get("verb").equals("share"))) {
+                    if (null != messageMap && messageMap.get("objectType").equals("activity")
+                            && (messageMap.get("verb").equals("post") || messageMap.get("verb").equals("share"))) {
                         insertIntoMongo(messageMap);
-                    } else {
-                        System.out.println("Dropped");
                     }
                 }
             }
