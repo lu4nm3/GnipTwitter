@@ -1,10 +1,7 @@
 package com.attensity.gnip.twitter;
 
-import com.attensity.gnip.twitter.configuration.Configuration;
-import com.attensity.gnip.twitter.configuration.Configurer;
 import com.attensity.mongo.MongoConnector;
 import com.attensity.mongo.MongoWriter;
-import org.apache.commons.daemon.DaemonContext;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +10,7 @@ import sun.misc.BASE64Encoder;
 import java.io.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Properties;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -21,11 +19,11 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class StreamingConnection {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamingConnection.class);
+    public static final String DEFAULT_GNIP_STREAM_TYPE = "POWERTRACK";
 
     private static StreamingConnection streamingConnection = new StreamingConnection();
 
-    private Configurer configurer;
-    private Configuration configuration;
+    Properties properties;
     private String username;
     private String password;
     private String streamURL;
@@ -47,17 +45,26 @@ public class StreamingConnection {
 
     public static void main(String... args) throws IOException {
         try {
+            String streamType;
 
-            String configFileName = args[0];
-            if(StringUtils.isEmpty(configFileName)) {
-                configFileName = "TwitterPowertrackConfig.json";
+            if (args.length == 0) {
+                System.out.println("Stream type not specified. Using default...");
+                streamType = DEFAULT_GNIP_STREAM_TYPE;
+            }
+            else {
+                streamType = args[0];
             }
 
-            LOGGER.info("Reading configuration file: " + configFileName);
-            streamingConnection.init(null, configFileName);
+            if(StringUtils.isEmpty(streamType)) {
+                streamType = DEFAULT_GNIP_STREAM_TYPE;
+            }
+
+            LOGGER.info("Reading configuration file: " + streamType);
+            streamingConnection.init(streamType);
             streamingConnection.start();
 
-            Thread.sleep(streamingConnection.getConfiguration().getRunDurationMilliseconds());
+            long runDurationMs = Long.parseLong(streamingConnection.getProperties().getProperty("runDurationMilliseconds"));
+            Thread.sleep(runDurationMs);
 
             streamingConnection.stop();
         } catch (Exception e) {
@@ -65,13 +72,28 @@ public class StreamingConnection {
         }
     }
 
-    public void init(DaemonContext context, String configurationFilePath) throws Exception {
-        configurer = new Configurer(configurationFilePath);
-        configuration = configurer.getConfig();
+    public void configure(String streamType) {
+        properties = new Properties();
+        properties.setProperty("runDurationSeconds", "20000");
+        properties.setProperty("mongoWriterCount", "5");
+        switch (streamType.toUpperCase()) {
+            case "DECAHOSE":    properties.setProperty("gnipUrl", "https://stream.gnip.com:443/accounts/attensity/publishers/twitter/streams/track/prod.json");
+                                properties.setProperty("mongoCollectionName", "decahose");
+                                break;
+            case "POWERTRACK":  properties.setProperty("gnipUrl", "https://stream.gnip.com:443/accounts/attensity/publishers/twitter/streams/firehose/prod.json");
+                                properties.setProperty("mongoCollectionName", "powertrack");
+                                break;
+            default:
+
+        }
+    }
+
+    public void init(String streamType) throws Exception {
+        configure(streamType);
 
         username = "ebradley@attensity.com";
         password = "@tt3ns1ty";
-        streamURL = configuration.getGnipUrl();
+        streamURL = properties.getProperty("gnipUrl");
         charset = "UTF-8";
 
         messageQueue = new LinkedBlockingQueue<String>();
@@ -88,7 +110,7 @@ public class StreamingConnection {
 
     private void startMongoThreads() {
         mongoConnector.connect();
-        int writerCount = configuration.getMongoWriterCount();
+        int writerCount = Integer.parseInt(properties.getProperty("mongoWriterCount"));
 
         if ((null == mongoExecutorService) || (mongoExecutorService.isShutdown())) {
             mongoExecutorService = Executors.newFixedThreadPool(writerCount);
@@ -116,7 +138,7 @@ public class StreamingConnection {
         return new Runnable() {
             @Override
             public void run() {
-                MongoWriter mongoWriter = new MongoWriter(configuration, mongoConnector, messageQueue);
+                MongoWriter mongoWriter = new MongoWriter(properties, mongoConnector, messageQueue);
                 mongoWriter.processMessages();
             }
         };
@@ -249,8 +271,8 @@ public class StreamingConnection {
         LOGGER.info("Stopped rate tracking.");
     }
 
-    public Configuration getConfiguration() {
-        return configuration;
+    public Properties getProperties() {
+        return properties;
     }
 
     public void destroy() {

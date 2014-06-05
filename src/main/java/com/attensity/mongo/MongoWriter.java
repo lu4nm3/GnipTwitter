@@ -1,6 +1,5 @@
 package com.attensity.mongo;
 
-import com.attensity.gnip.twitter.configuration.Configuration;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.MongoException;
@@ -11,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
 
 public class MongoWriter {
@@ -23,8 +23,8 @@ public class MongoWriter {
 
     private ObjectMapper mapper;
 
-    public MongoWriter(Configuration configuration, MongoConnector mongoConnector, BlockingQueue<String> messageQueue) {
-        this.mongoCollection = mongoConnector.getDatabase().getCollection(configuration.getMongoCollectionName());
+    public MongoWriter(Properties properties, MongoConnector mongoConnector, BlockingQueue<String> messageQueue) {
+        this.mongoCollection = mongoConnector.getDatabase().getCollection(properties.getProperty("mongoCollectionName"));
 
         this.messageQueue = messageQueue;
         this.mapper = new ObjectMapper();

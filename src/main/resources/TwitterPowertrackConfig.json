@@ -1,6 +1,0 @@
-{
-    "gnipUrl":"https://stream.gnip.com:443/accounts/attensity/publishers/twitter/streams/track/prod.json",
-    "mongoWriterCount": 5,
-    "mongoCollectionName": "powertrack",
-    "runDurationMilliseconds": 20000
-}
