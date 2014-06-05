@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.net.URISyntaxException;
 
 public class Configurer {
     private Logger LOGGER = LoggerFactory.getLogger(Configurer.class);
@@ -38,39 +39,24 @@ public class Configurer {
         return configuration;
     }
     protected String readConfigFromFile(String filePath) {
+        StringBuffer rawConfiguration = new StringBuffer();
+        String line;
+
         if(null == filePath){
             filePath = DEFAULT_CONFIG_NAME;
         }
-        File config = new File(filePath);
-        InputStream fis=null;
-        BufferedInputStream bis = null;
-        DataInputStream dis = null;
-        StringBuffer rawConfiguration = new StringBuffer();
 
-        try{
-            String q;
-            if (config.exists()) {
-                fis = new FileInputStream(config);
+        File file = null;
+        try {
+            file = new File(Configurer.class.getResource("/" + filePath).toURI());
+            BufferedReader br = new BufferedReader(new FileReader(file));
+            while ((line = br.readLine()) != null) {
+                rawConfiguration.append(line);
             }
-            else {
-                LOGGER.error("config could not be read from " + filePath);
-                throw new RuntimeException("config could not be read from " + filePath);
-            }
-            bis = new BufferedInputStream(fis);
-            dis = new DataInputStream(bis);
-            q = "";
+            br.close();
 
-            while(dis.available() != 0){
-                q = dis.readLine();
-                rawConfiguration.append(q);
-            }
-            fis.close();
-            bis.close();
-            dis.close();
-        }catch(FileNotFoundException e){
+        } catch (URISyntaxException | IOException e) {
             LOGGER.error(e.getMessage(), e);
-        }catch(IOException e){
-            LOGGER.error(e.getMessage(),e);
         }
         LOGGER.info(rawConfiguration.toString());
         return rawConfiguration.toString();
