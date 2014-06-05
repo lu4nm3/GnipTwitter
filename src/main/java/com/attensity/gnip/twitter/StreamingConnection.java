@@ -1,9 +1,11 @@
 package com.attensity.gnip.twitter;
 
+import com.attensity.gnip.twitter.configuration.Configuration;
+import com.attensity.gnip.twitter.configuration.Configurer;
 import com.attensity.mongo.MongoConnector;
 import com.attensity.mongo.MongoWriter;
-import org.apache.commons.daemon.Daemon;
 import org.apache.commons.daemon.DaemonContext;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import sun.misc.BASE64Encoder;
@@ -17,11 +19,13 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * @author lmedina
  */
-public class StreamingConnection implements Daemon {
+public class StreamingConnection {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamingConnection.class);
 
     private static StreamingConnection streamingConnection = new StreamingConnection();
 
+    private Configurer configurer;
+    private Configuration configuration;
     private String username;
     private String password;
     private String streamURL;
@@ -43,10 +47,17 @@ public class StreamingConnection implements Daemon {
 
     public static void main(String... args) throws IOException {
         try {
-            streamingConnection.init(null);
+
+            String configFileName = args[0];
+            if(StringUtils.isEmpty(configFileName)) {
+                configFileName = "TwitterPowertrackConfig.json";
+            }
+
+            LOGGER.info("Reading configuration file: " + configFileName);
+            streamingConnection.init(null, configFileName);
             streamingConnection.start();
 
-            Thread.sleep(20000);
+            Thread.sleep(streamingConnection.getConfiguration().getRunDurationMilliseconds());
 
             streamingConnection.stop();
         } catch (Exception e) {
@@ -54,39 +65,36 @@ public class StreamingConnection implements Daemon {
         }
     }
 
-    @Override
-    public void init(DaemonContext context) throws Exception {
+    public void init(DaemonContext context, String configurationFilePath) throws Exception {
+        configurer = new Configurer(configurationFilePath);
+        configuration = configurer.getConfig();
+
         username = "ebradley@attensity.com";
         password = "@tt3ns1ty";
-        streamURL = "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/decahose/prod.json";
+        streamURL = configuration.getGnipUrl();
         charset = "UTF-8";
 
-        messageQueue = new LinkedBlockingQueue<>();
+        messageQueue = new LinkedBlockingQueue<String>();
         mongoConnector = new MongoConnector();
 
         TIME_SECONDS = 30;
     }
 
-    @Override
     public void start() throws Exception {
         startMongoThreads();
         startStreamThread();
         startRateTrackingThread();
     }
 
-
     private void startMongoThreads() {
         mongoConnector.connect();
+        int writerCount = configuration.getMongoWriterCount();
 
         if ((null == mongoExecutorService) || (mongoExecutorService.isShutdown())) {
-            mongoExecutorService = Executors.newFixedThreadPool(7);
-            mongoExecutorService.submit(createMongoRunnable());
-            mongoExecutorService.submit(createMongoRunnable());
-            mongoExecutorService.submit(createMongoRunnable());
-            mongoExecutorService.submit(createMongoRunnable());
-            mongoExecutorService.submit(createMongoRunnable());
-            mongoExecutorService.submit(createMongoRunnable());
-            mongoExecutorService.submit(createMongoRunnable());
+            mongoExecutorService = Executors.newFixedThreadPool(writerCount);
+            for(int i = 0; i < writerCount; i++) {
+                mongoExecutorService.submit(createMongoRunnable());
+            }
         }
     }
 
@@ -108,7 +116,7 @@ public class StreamingConnection implements Daemon {
         return new Runnable() {
             @Override
             public void run() {
-                MongoWriter mongoWriter = new MongoWriter(mongoConnector, messageQueue);
+                MongoWriter mongoWriter = new MongoWriter(configuration, mongoConnector, messageQueue);
                 mongoWriter.processMessages();
             }
         };
@@ -207,7 +215,6 @@ public class StreamingConnection implements Daemon {
         }
     }
 
-    @Override
     public void stop() {
         stopStreamExecutor();
         stopMongoExecutor();
@@ -242,7 +249,10 @@ public class StreamingConnection implements Daemon {
         LOGGER.info("Stopped rate tracking.");
     }
 
-    @Override
+    public Configuration getConfiguration() {
+        return configuration;
+    }
+
     public void destroy() {
         LOGGER.info("Done.");
     }

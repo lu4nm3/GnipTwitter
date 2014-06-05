@@ -3,6 +3,7 @@ apply plugin: 'maven'
 apply plugin: 'application'
 
 mainClassName = "com.attensity.gnip.twitter.StreamingConnection"
+applicationDefaultJvmArgs = ["-DconfigFile=TwitterPowertrack.json"]
 
 configurations {
     published
@@ -17,7 +18,8 @@ dependencies {
             'org.mongodb:mongo-java-driver:2.11.4',
             'org.slf4j:slf4j-api:1.7.7',
             'commons-daemon:commons-daemon:1.0.15',
-            'org.codehaus.jackson:jackson-mapper-asl:1.9.13'
+            'org.codehaus.jackson:jackson-core-asl:1.8.4',
+            'org.codehaus.jackson:jackson-mapper-asl:1.8.4'
 }
 
 repositories {
@@ -25,5 +27,5 @@ repositories {
 }
 
 task wrapper(type: Wrapper) {
-    gradleVersion = '1.11'
+    gradleVersion = '1.10'
 }

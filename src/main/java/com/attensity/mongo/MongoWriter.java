@@ -1,5 +1,6 @@
 package com.attensity.mongo;
 
+import com.attensity.gnip.twitter.configuration.Configuration;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.MongoException;
@@ -22,8 +23,8 @@ public class MongoWriter {
 
     private ObjectMapper mapper;
 
-    public MongoWriter(MongoConnector mongoConnector, BlockingQueue<String> messageQueue) {
-        this.mongoCollection = mongoConnector.getDatabase().getCollection("decahose");
+    public MongoWriter(Configuration configuration, MongoConnector mongoConnector, BlockingQueue<String> messageQueue) {
+        this.mongoCollection = mongoConnector.getDatabase().getCollection(configuration.getMongoCollectionName());
 
         this.messageQueue = messageQueue;
         this.mapper = new ObjectMapper();
@@ -37,9 +38,7 @@ public class MongoWriter {
                 if (StringUtils.isNotBlank(message)) {
                     Map<String, Object> messageMap = createMessageMap(message);
 
-                    if (null != messageMap) {// && messageMap.get("objectType").equals("activity") && (messageMap.get("verb").equals("post") || messageMap.get("verb").equals("share"))) {
-//                        System.out.println(messageMap);
-
+                    if (null != messageMap && messageMap.get("objectType").equals("activity") && (messageMap.get("verb").equals("post") || messageMap.get("verb").equals("share"))) {
                         insertIntoMongo(messageMap);
                     } else {
                         System.out.println("Dropped");
