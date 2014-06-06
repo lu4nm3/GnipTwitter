@@ -1,5 +1,6 @@
 package com.attensity.mongo;
 
+import com.attensity.gnip.twitter.StreamingConnection;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.MongoException;
@@ -24,7 +25,7 @@ public class MongoWriter {
     private ObjectMapper mapper;
 
     public MongoWriter(Properties properties, MongoConnector mongoConnector, BlockingQueue<String> messageQueue) {
-        this.mongoCollection = mongoConnector.getDatabase().getCollection(properties.getProperty("mongoCollectionName"));
+        this.mongoCollection = mongoConnector.getDatabase().getCollection(properties.getProperty(StreamingConnection.MONGO_COLLECTION_NAME));
 
         this.messageQueue = messageQueue;
         this.mapper = new ObjectMapper();

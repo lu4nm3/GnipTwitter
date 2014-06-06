@@ -20,6 +20,15 @@ import java.util.concurrent.atomic.AtomicLong;
 public class StreamingConnection {
     private static final Logger LOGGER = LoggerFactory.getLogger(StreamingConnection.class);
     public static final String DEFAULT_GNIP_STREAM_TYPE = "POWERTRACK";
+    public static final int DEFAULT_RUN_DURATION_MS = 20000;
+    public static final int DEFAULT_MONGO_SAVE_COUNT = 100;
+    public static final String RUN_DURATION_MILLISECONDS = "runDurationMilliseconds";
+    public static final String MONGO_SAVE_COUNT = "mongoSaveCount";
+    public static final String MONGO_WRITER_COUNT = "mongoWriterCount";
+    public static final String GNIP_URL = "gnipUrl";
+    public static final String MONGO_COLLECTION_NAME = "mongoCollectionName";
+    public static final String DECAHOSE = "DECAHOSE";
+    public static final String POWERTRACK = "POWERTRACK";
 
     private static StreamingConnection streamingConnection = new StreamingConnection();
 
@@ -40,27 +49,41 @@ public class StreamingConnection {
 
     private ScheduledExecutorService rateTrackingExecutorService;
     private long TIME_SECONDS;
+    private int saveCount;
     private AtomicLong oldMessageCount = new AtomicLong(0);
     private AtomicLong currentMessageCount = new AtomicLong(0);
 
     public static void main(String... args) throws IOException {
         try {
-            String streamType;
+            String streamType = DEFAULT_GNIP_STREAM_TYPE;
+            long runDurationMilliseconds = DEFAULT_RUN_DURATION_MS;
+            int mongoSaveCount = DEFAULT_MONGO_SAVE_COUNT;
 
-            if (args.length == 0) {
-                System.out.println("Stream type not specified. Using default...");
-                streamType = DEFAULT_GNIP_STREAM_TYPE;
+            if(args.length < 3) {
+                printUsage();
+                System.exit(0);
             }
-            else {
+
+            if (args.length == 3) {
                 streamType = args[0];
+                mongoSaveCount = Integer.parseInt(args[1]);
+                runDurationMilliseconds = Long.parseLong(args[2]);
             }
 
             if(StringUtils.isEmpty(streamType)) {
                 streamType = DEFAULT_GNIP_STREAM_TYPE;
             }
 
-            LOGGER.info("Reading configuration file: " + streamType);
-            streamingConnection.init(streamType);
+            if(mongoSaveCount <= 0) {
+                mongoSaveCount = DEFAULT_MONGO_SAVE_COUNT;
+            }
+
+            if(runDurationMilliseconds <= 0) {
+                runDurationMilliseconds = DEFAULT_RUN_DURATION_MS;
+            }
+
+            LOGGER.info("Running stream of type: " + streamType);
+            streamingConnection.init(streamType, mongoSaveCount, runDurationMilliseconds);
             streamingConnection.start();
 
             long runDurationMs = Long.parseLong(streamingConnection.getProperties().getProperty("runDurationMilliseconds"));
@@ -72,31 +95,33 @@ public class StreamingConnection {
         }
     }
 
-    public void configure(String streamType) {
+    public void configure(String streamType, int mongoSaveCount, long runDurationMilliseconds) {
         properties = new Properties();
-        properties.setProperty("runDurationSeconds", "20000");
-        properties.setProperty("mongoWriterCount", "5");
+        properties.setProperty(RUN_DURATION_MILLISECONDS, ""+runDurationMilliseconds);
+        properties.setProperty(MONGO_SAVE_COUNT, ""+mongoSaveCount);
+        properties.setProperty(MONGO_WRITER_COUNT, "5");
         switch (streamType.toUpperCase()) {
-            case "DECAHOSE":    properties.setProperty("gnipUrl", "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/decahose/prod.json");
-                                properties.setProperty("mongoCollectionName", "decahose");
+            case DECAHOSE:    properties.setProperty(GNIP_URL, "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/decahose/prod.json");
+                                properties.setProperty(MONGO_COLLECTION_NAME, "decahose");
                                 break;
-            case "POWERTRACK":  properties.setProperty("gnipUrl", "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/track/prod.json");
-                                properties.setProperty("mongoCollectionName", "powertrack");
+            case POWERTRACK:  properties.setProperty(GNIP_URL, "https://stream.gnip.com:443/accounts/Attensity/publishers/twitter/streams/track/prod.json");
+                                properties.setProperty(MONGO_COLLECTION_NAME, "powertrack");
                                 break;
             default:
         }
     }
 
-    public void init(String streamType) throws Exception {
-        configure(streamType);
+    public void init(String streamType, int mongoWriteCount, long runDurationMilliseconds) throws Exception {
+        configure(streamType, mongoWriteCount, runDurationMilliseconds);
 
         username = "ebradley@attensity.com";
         password = "@tt3ns1ty";
-        streamURL = properties.getProperty("gnipUrl");
+        streamURL = properties.getProperty(GNIP_URL);
         charset = "UTF-8";
 
         messageQueue = new LinkedBlockingQueue<String>();
         mongoConnector = new MongoConnector();
+        saveCount = mongoWriteCount;
 
         TIME_SECONDS = 30;
     }
@@ -158,7 +183,9 @@ public class StreamingConnection {
                         String line = reader.readLine();
 
                         while(line != null){
-                            messageQueue.add(line);
+                            if(currentMessageCount.get() <= saveCount) {
+                                messageQueue.add(line);
+                            }
                             currentMessageCount.incrementAndGet();
 
                             line = reader.readLine();
@@ -193,8 +220,8 @@ public class StreamingConnection {
         long old = oldMessageCount.get();
 
         LOGGER.info(String.format("RATES: totalMessagesSent(%d), messagesInTheLastTimeInterval(%d), ratePerSecond(%d)", current,
-                                  current - old,
-                                  (current - old) / TIME_SECONDS));
+                current - old,
+                (current - old) / TIME_SECONDS));
 
         oldMessageCount.set(current);
     }
@@ -274,7 +301,17 @@ public class StreamingConnection {
         return properties;
     }
 
-    public void destroy() {
-        LOGGER.info("Done.");
+    private static void printUsage() {
+        StringBuffer buf = new StringBuffer();
+        buf.append("GnipTwitter POC Usage params: ").append("\n")
+                .append("GnipTwitter <POWERTRACK|DECAHOSE> <mongoSaveCount> <runDurationMilliseconds>")
+                .append("POWERTRACK - runs the Gnip Powertrack stream").append("\n")
+                .append("DECAHOSE - runs the Gnip Decahose stream").append("\n")
+                .append("mongoSaveCount - max docs to be saved in mongodb for this run. (We will not save the entire data in mongodb in any case)").append("\n")
+                .append("runDurationMilliseconds - amount of time to run the stream for. Limit this to a couple of hours max on staging.")
+                .append("\n");
+        System.out.println(buf.toString());
     }
+
+
 }
