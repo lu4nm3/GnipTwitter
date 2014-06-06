@@ -304,7 +304,7 @@ public class StreamingConnection {
     private static void printUsage() {
         StringBuffer buf = new StringBuffer();
         buf.append("GnipTwitter POC Usage params: ").append("\n")
-                .append("GnipTwitter <POWERTRACK|DECAHOSE> <mongoSaveCount> <runDurationMilliseconds>")
+                .append("GnipTwitter <POWERTRACK|DECAHOSE> <mongoSaveCount> <runDurationMilliseconds>").append("\n\n")
                 .append("POWERTRACK - runs the Gnip Powertrack stream").append("\n")
                 .append("DECAHOSE - runs the Gnip Decahose stream").append("\n")
                 .append("mongoSaveCount - max docs to be saved in mongodb for this run. (We will not save the entire data in mongodb in any case)").append("\n")
