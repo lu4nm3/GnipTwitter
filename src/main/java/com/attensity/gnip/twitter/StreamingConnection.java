@@ -198,9 +198,7 @@ public class StreamingConnection {
                         handleNonSuccessResponse(connection);
                     }
                 } finally {
-                    if (inputStream != null) {
-                        closeInputStream();
-                    }
+                    closeInputStream();
                 }
             }
         };
@@ -219,7 +217,7 @@ public class StreamingConnection {
         long current = currentMessageCount.get();
         long old = oldMessageCount.get();
 
-        LOGGER.info(String.format("RATES: totalMessagesSent(%d), messagesInTheLastTimeInterval(%d), ratePerSecond(%d)", current,
+        LOGGER.info(String.format("RATE: totalMessagesSent(%d), messagesInTheLastTimeInterval(%d), ratePerSecond(%d)", current,
                 current - old,
                 (current - old) / TIME_SECONDS));
 
@@ -257,7 +255,9 @@ public class StreamingConnection {
 
     private void closeInputStream() {
         try {
-            inputStream.close();
+            if (null != inputStream) {
+                inputStream.close();
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
