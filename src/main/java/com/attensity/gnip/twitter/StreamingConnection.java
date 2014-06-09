@@ -183,8 +183,13 @@ public class StreamingConnection {
                         String line = reader.readLine();
 
                         while(line != null){
-                            if(currentMessageCount.get() <= saveCount) {
+                            if("powertrack".equals(properties.getProperty(MONGO_COLLECTION_NAME))) {
                                 messageQueue.add(line);
+                            }
+                            else {
+                                if(currentMessageCount.get() <= saveCount) {
+                                    messageQueue.add(line);
+                                }
                             }
                             currentMessageCount.incrementAndGet();
 
