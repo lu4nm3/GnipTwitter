@@ -183,9 +183,9 @@ public class StreamingConnection {
                         String line = reader.readLine();
 
                         while(line != null){
-    //                      if(currentMessageCount.get() <= saveCount) {
+                          if(currentMessageCount.get() <= saveCount) {
                                 messageQueue.add(line);
-    //                      }
+                          }
                             currentMessageCount.incrementAndGet();
 
                             line = reader.readLine();
